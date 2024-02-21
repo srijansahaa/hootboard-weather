@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./App.css";
 import axios from "axios";
 import {
@@ -9,144 +9,55 @@ import {
   Wind,
 } from "@phosphor-icons/react";
 import landing from "./assets/landing.png";
-
-interface Coord {
-  lon: number;
-  lat: number;
-}
-
-interface Weather {
-  id: number;
-  main: string;
-  description: string;
-  icon: string;
-}
-
-interface Main {
-  temp: number;
-  feels_like: number;
-  temp_min: number;
-  temp_max: number;
-  pressure: number;
-  humidity: number;
-  sea_level: number;
-  grnd_level: number;
-}
-
-interface Wind {
-  speed: number;
-  deg: number;
-  gust: number;
-}
-
-interface Rain {
-  "1h": number;
-  "3h": number;
-}
-
-interface Clouds {
-  all: number;
-}
-
-interface Sys {
-  type: number;
-  id: number;
-  country: string;
-  sunrise: number;
-  sunset: number;
-}
-
-interface WeatherData {
-  coord: Coord;
-  weather: Weather[];
-  base: string;
-  main: Main;
-  visibility: number;
-  wind: Wind;
-  rain: Rain;
-  clouds: Clouds;
-  dt: number;
-  sys: Sys;
-  timezone: number;
-  id: number;
-  name: string;
-  cod: number;
-}
+import { LocationItem, PlaceItem, WeatherItem } from "./interfaces";
 
 function App() {
-  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [weatherData, setWeatherData] = useState<WeatherItem | null>(null);
   const [error, setError] = useState<string>("");
   const [city, setCity] = useState("");
-  const [date, setDate] = useState({});
+  const [placeData, setPlaceData] = useState<PlaceItem | null>(null);
+  const [citySuggestions, setCitySuggestions] = useState<LocationItem[]>([]);
+
+  const [accessToken, setAccessToken] = useState<string>("");
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.post(
+          "https://test.api.amadeus.com/v1/security/oauth2/token",
+          new URLSearchParams({
+            grant_type: "client_credentials",
+            client_id: "2S3eA1mWmdxbqHsHL5A9vz6OMxDr3vZU",
+            client_secret: "qD2RaG7ExrZjwvcZ",
+          }),
+          {
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+          }
+        );
+        setAccessToken(response.data.access_token);
+      } catch (error) {
+        console.error("Error fetching access token:", error);
+      }
+    };
+    fetchData();
+  }, []);
 
   const fetchWeatherData = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
+    setCitySuggestions([]);
     try {
       const response = await axios.get(
-        `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=832757f844ba393972494e7ba530773f`
+        `https://api.openweathermap.org/data/2.5/forecast?q=${city}&appid=832757f844ba393972494e7ba530773f`
       );
       setError("");
-      setWeatherData(response.data);
-      console.log(response.data);
-      if (weatherData) {
-        const date = new Date(weatherData.dt * 1000);
-        setDate(date);
-      }
+      setWeatherData(response.data.list[0]);
+      setPlaceData(response.data.city);
     } catch (error) {
       setError("Enter a valid search");
     }
   };
-
-  // const weatherData = {
-  //   coord: {
-  //     lon: 10.99,
-  //     lat: 44.34,
-  //   },
-  //   weather: [
-  //     {
-  //       id: 501,
-  //       main: "Rain",
-  //       description: "moderate rain",
-  //       icon: "10d",
-  //     },
-  //   ],
-  //   base: "stations",
-  //   main: {
-  //     temp: 298.48,
-  //     feels_like: 298.74,
-  //     temp_min: 297.56,
-  //     temp_max: 300.05,
-  //     pressure: 1015,
-  //     humidity: 64,
-  //     sea_level: 1015,
-  //     grnd_level: 933,
-  //   },
-  //   visibility: 10000,
-  //   wind: {
-  //     speed: 0.62,
-  //     deg: 349,
-  //     gust: 1.18,
-  //   },
-  //   rain: {
-  //     "1h": 3.16,
-  //     "3h": 3.16,
-  //   },
-  //   clouds: {
-  //     all: 100,
-  //   },
-  //   dt: 1661870592,
-  //   sys: {
-  //     type: 2,
-  //     id: 2075663,
-  //     country: "IT",
-  //     sunrise: 1661834187,
-  //     sunset: 1661882248,
-  //   },
-  //   timezone: 7200,
-  //   id: 3163858,
-  //   name: "Zocca",
-  //   cod: 200,
-  // };
 
   const convertToCelsius = (temp: number): number => {
     return Math.round(temp - 273.15);
@@ -169,29 +80,69 @@ function App() {
     return date.toLocaleDateString("en-US", options);
   };
 
-  console.log(weatherData);
-
-  console.log(error);
+  const handleCitySearch = async (city: string) => {
+    setCity(city);
+    if (city.length > 2) {
+      try {
+        const response = await axios.get(
+          `https://test.api.amadeus.com/v1/reference-data/locations/cities?keyword=${city}&max=5`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+        if (response.data.data) {
+          setCitySuggestions(response.data.data);
+        } else setCitySuggestions([]);
+      } catch (error) {
+        console.log(error);
+        setCitySuggestions([]);
+      }
+    } else {
+      setCitySuggestions([]);
+    }
+  };
 
   return (
     <div className="container mx-auto py-4 max-sm:p-4">
-      <form onSubmit={fetchWeatherData} className="flex gap-4 my-8">
-        <input
-          type="text"
-          placeholder="Enter city name"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          className="grow border px-4 rounded-md bg-white focus-visible:outline-0 max-sm:text-sm"
-        />
-        <button
-          type="submit"
-          className="border-gradient-to-r from-sky-500 to-indigo-500 w-40 max-sm:w-fit py-4 max-sm:p-4 max-sm:text-sm rounded-md bg-gradient-to-r from-sky-500 to-indigo-500 text-white hover:bg-white hover:text-gradient-to-r from-sky-500 to-indigo-500"
-        >
-          Get Weather
-        </button>
-      </form>
+      <div className="relative my-8">
+        <form onSubmit={fetchWeatherData} className="flex gap-4">
+          <input
+            type="text"
+            placeholder="Enter city name"
+            value={city}
+            onChange={(e) => handleCitySearch(e.target.value)}
+            className="grow border px-4 rounded-md bg-white focus-visible:outline-0 max-sm:text-sm"
+          />
+
+          <button
+            type="submit"
+            className="border-gradient-to-r from-sky-500 to-indigo-500 w-40 max-sm:w-fit py-4 max-sm:p-4 max-sm:text-sm rounded-md bg-gradient-to-r from-sky-500 to-indigo-500 text-white hover:bg-white hover:text-gradient-to-r from-sky-500 to-indigo-500"
+          >
+            Get Weather
+          </button>
+        </form>
+        {citySuggestions.length > 0 && (
+          <div className="flex flex-col gap-2 absolute bg-white border rounded-md p-4 w-full">
+            {citySuggestions.map((city, index) => (
+              <span
+                key={index.toString()}
+                className="cursor-pointer"
+                onClick={(e) => {
+                  setCity(city.name);
+                  fetchWeatherData(e);
+                  setCitySuggestions([]);
+                }}
+              >
+                {city.name}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
       {error.length === 0 ? (
-        weatherData ? (
+        weatherData && placeData ? (
           <div className="flex max-sm:flex-col max-w-screen-md mx-auto gap-4">
             <div className="w-2/5 max-sm:w-full flex flex-col items-center justify-center gap-3 border rounded-md bg-white py-4">
               <img
@@ -209,7 +160,7 @@ function App() {
             </div>
             <div className="w-3/5 max-sm:w-full">
               <div className="mb-2">
-                <span className="text-xl">{`${weatherData.name}, ${weatherData.sys.country}`}</span>
+                <span className="text-xl">{`${placeData.name}, ${placeData.country}`}</span>
                 <p className="text-slate-400">
                   {convertUtcTimestampToDate(weatherData.dt)}
                 </p>
@@ -247,8 +198,7 @@ function App() {
                     <div className="flex flex-col">
                       <label className="text-xs text-slate-400">Rain</label>
                       <span className="text-2xl">
-                        {weatherData?.rain?.["1h"] || weatherData?.rain?.["3h"]}{" "}
-                        mm
+                        {weatherData?.rain?.["3h"]} mm
                       </span>
                     </div>
                     <CloudRain size={32} color="#6287f9" weight="duotone" />
@@ -259,7 +209,7 @@ function App() {
                   <div className="flex flex-col">
                     <label className="text-xs text-slate-400">Sunrise</label>
                     <span className="text-2xl">
-                      {convertUtcTimestampToTime(weatherData.sys.sunrise)}
+                      {convertUtcTimestampToTime(placeData.sunrise)}
                     </span>
                   </div>
                   <SunHorizon size={32} color="#6287f9" weight="duotone" />
@@ -268,7 +218,7 @@ function App() {
                   <div className="flex flex-col">
                     <label className="text-xs text-slate-400">Sunset</label>
                     <span className="text-2xl">
-                      {convertUtcTimestampToTime(weatherData.sys.sunset)}
+                      {convertUtcTimestampToTime(placeData.sunset)}
                     </span>
                   </div>
                   <RainbowCloud size={32} color="#6287f9" weight="duotone" />
