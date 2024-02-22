@@ -9,6 +9,7 @@ import {
   Wind,
 } from "@phosphor-icons/react";
 import landing from "./assets/landing.png";
+import loader from "./assets/loading.gif";
 import { LocationItem, PlaceItem, WeatherItem } from "./interfaces";
 
 function App() {
@@ -17,8 +18,8 @@ function App() {
   const [city, setCity] = useState("");
   const [placeData, setPlaceData] = useState<PlaceItem | null>(null);
   const [citySuggestions, setCitySuggestions] = useState<LocationItem[]>([]);
-
   const [accessToken, setAccessToken] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,6 +46,7 @@ function App() {
   }, []);
 
   const fetchWeatherData = async (e: { preventDefault: () => void }) => {
+    setLoading(true);
     e.preventDefault();
     setCitySuggestions([]);
     try {
@@ -54,8 +56,10 @@ function App() {
       setError("");
       setWeatherData(response.data.list[0]);
       setPlaceData(response.data.city);
+      setLoading(false);
     } catch (error) {
       setError("Enter a valid search");
+      setLoading(false);
     }
   };
 
@@ -124,11 +128,11 @@ function App() {
           </button>
         </form>
         {citySuggestions.length > 0 && (
-          <div className="flex flex-col gap-2 absolute bg-white border rounded-md p-4 w-full">
+          <div className="flex flex-col absolute bg-white border rounded-md w-full">
             {citySuggestions.map((city, index) => (
               <span
                 key={index.toString()}
-                className="cursor-pointer"
+                className="cursor-pointer hover:bg-slate-100 px-4 py-2"
                 onClick={(e) => {
                   setCity(city.name);
                   fetchWeatherData(e);
@@ -141,10 +145,14 @@ function App() {
           </div>
         )}
       </div>
-      {error.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center">
+          <img src={loader} alt="Loading..." className="w-32" />
+        </div>
+      ) : error.length === 0 ? (
         weatherData && placeData ? (
           <div className="flex max-sm:flex-col max-w-screen-md mx-auto gap-4">
-            <div className="w-2/5 max-sm:w-full flex flex-col items-center justify-center gap-3 border rounded-md bg-white py-4">
+            <div className="w-2/5 max-sm:w-full flex flex-col items-center justify-center gap-3 border rounded-md border bg-gradient-to-br from-sky-500 to-indigo-500 py-4 text-white">
               <img
                 alt={weatherData.weather[0].description}
                 src={`http://openweathermap.org/img/w/${weatherData.weather[0].icon}.png`}
